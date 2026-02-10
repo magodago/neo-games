@@ -3,133 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEO Space Invaders v2.1</title>
+    <title>NEO Galaxian Edition</title>
     <style>
-        body { background: #050505; color: #00ff00; text-align: center; font-family: 'Courier New', monospace; margin: 0; overflow: hidden; touch-action: none; }
-        #game-container { position: relative; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        canvas { border: 2px solid #333; background: #000; box-shadow: 0 0 20px rgba(0,255,0,0.2); max-width: 95%; max-height: 70vh; }
-        .ui { margin: 10px; font-size: 1.2em; text-transform: uppercase; letter-spacing: 2px; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
-        button { background: #00ff00; color: #000; border: none; padding: 15px 30px; font-size: 1.5em; font-family: 'Courier New', monospace; cursor: pointer; font-weight: bold; margin-top: 20px; border-radius: 5px; }
-        button:hover { background: #00cc00; }
+        body { background: #000; color: #00f0ff; text-align: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; overflow: hidden; touch-action: none; }
+        #game-container { position: relative; width: 100vw; height: 100vh; background: radial-gradient(circle, #1a1a2e 0%, #000 100%); overflow: hidden; }
+        canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+        
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        .title { font-size: 3em; font-weight: bold; color: #fff; text-shadow: 0 0 20px #00f0ff; margin-bottom: 20px; font-family: 'Courier New', Courier, monospace; }
+        button#startBtn { background: linear-gradient(45deg, #00f0ff, #0077ff); color: #fff; border: none; padding: 20px 40px; font-size: 1.5em; cursor: pointer; border-radius: 50px; box-shadow: 0 0 15px #00f0ff; text-transform: uppercase; font-weight: bold; }
+        
+        .hud { position: absolute; top: 20px; width: 100%; display: flex; justify-content: space-around; font-size: 1.5em; pointer-events: none; z-index: 10; color: #fff; text-shadow: 2px 2px #000; }
+        
+        /* Controles Táctiles */
+        .controls-container { position: absolute; bottom: 30px; width: 100%; display: flex; justify-content: space-between; padding: 0 30px; box-sizing: border-box; z-index: 50; }
+        .touch-group { display: flex; gap: 20px; }
+        .tbtn { width: 80px; height: 80px; background: rgba(255,255,255,0.15); border: 2px solid rgba(0,240,255,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2em; color: #fff; user-select: none; -webkit-tap-highlight-color: transparent; backdrop-filter: blur(5px); }
+        .tbtn:active { background: rgba(0,240,255,0.4); transform: scale(0.9); }
+        .fire-btn { background: rgba(255,0,0,0.2) !important; border-color: #ff3333 !important; box-shadow: 0 0 15px #ff3333; }
+        .fire-btn:active { background: rgba(255,0,0,0.5) !important; }
+        
         .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <div id="game-container">
         <div id="overlay">
-            <h1 id="msg">NEO INVADERS</h1>
-            <button id="startBtn">INICIAR JUEGO</button>
+            <div class="title">NEO GALAXIAN</div>
+            <button id="startBtn">DESPLEGAR NAVE</button>
         </div>
-        <div class="ui">SCORE: <span id="score">0</span></div>
+        <div class="hud">
+            <div>SCORE: <span id="score">0</span></div>
+        </div>
         <canvas id="g"></canvas>
+        
+        <div class="controls-container">
+            <div class="touch-group">
+                <div class="tbtn" id="leftBtn">◀</div>
+                <div class="tbtn" id="rightBtn">▶</div>
+            </div>
+            <div class="tbtn fire-btn" id="fireBtn">🔥</div>
+        </div>
     </div>
+
     <script>
         const c = document.getElementById('g');
         const ctx = c.getContext('2d');
         const scoreEl = document.getElementById('score');
         const overlay = document.getElementById('overlay');
         const startBtn = document.getElementById('startBtn');
-        const msg = document.getElementById('msg');
         
-        c.width = 600;
-        c.height = 400;
+        // Ajustar canvas al tamaño real
+        function resize() {
+            c.width = window.innerWidth;
+            c.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
 
         let score = 0;
         let gameActive = false;
-        let p = { x: 275, y: 350, w: 40, h: 20 };
+        let stars = Array.from({length: 100}, () => ({x: Math.random()*c.width, y: Math.random()*c.height, s: Math.random()*2}));
+        
+        let p = { x: 0, y: 0, w: 50, h: 40, speed: 8 };
         let bullets = [];
         let enemies = [];
         let dir = 1;
-        let speed = 0.8; // Más lento por petición del jefe
+        let speed = 2;
+        let moveState = { left: false, right: false };
 
-        function initEnemies() {
+        function initGame() {
+            p.x = c.width / 2 - 25;
+            p.y = c.height - 180;
             enemies = [];
-            for(let r=0; r<4; r++) {
-                for(let col=0; col<8; col++) {
-                    enemies.push({ x: col*60 + 50, y: r*40 + 50, w: 30, h: 20, alive: true });
+            const rows = 4;
+            const cols = Math.floor(c.width / 70) - 2;
+            for(let r=0; r<rows; r++) {
+                for(let col=0; col<cols; col++) {
+                    enemies.push({ 
+                        x: col*70 + (c.width - cols*70)/2, 
+                        y: r*50 + 100, 
+                        w: 40, h: 30, 
+                        alive: true,
+                        type: r,
+                        swing: Math.random() * Math.PI * 2
+                    });
                 }
             }
         }
 
-        function drawShip(x, y) {
-            ctx.fillStyle = '#00ff00';
-            ctx.fillRect(x + 15, y - 5, 10, 5);
-            ctx.fillRect(x, y, 40, 20);
+        function drawStars() {
+            ctx.fillStyle = '#fff';
+            stars.forEach(s => {
+                s.y += s.s;
+                if(s.y > c.height) s.y = 0;
+                ctx.fillRect(s.x, s.y, 1, 1);
+            });
         }
 
-        function drawEnemy(x, y) {
-            ctx.fillStyle = '#ff3333';
-            ctx.font = '20px Arial';
-            ctx.fillText('👾', x, y + 15);
+        function drawShip(x, y) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#00f0ff';
+            ctx.fillStyle = '#00f0ff';
+            // Cuerpo
+            ctx.beginPath();
+            ctx.moveTo(x + 25, y);
+            ctx.lineTo(x + 50, y + 40);
+            ctx.lineTo(x, y + 40);
+            ctx.closePath();
+            ctx.fill();
+            // Alas
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(x + 10, y + 30, 30, 5);
+            ctx.shadowBlur = 0;
+        }
+
+        function drawEnemy(e) {
+            ctx.font = '30px Arial';
+            ctx.shadowBlur = 10;
+            const icons = ['🛸', '👾', '🚀', '🪐'];
+            ctx.shadowColor = '#ff3333';
+            ctx.fillText(icons[e.type % 4], e.x, e.y + 25);
+            ctx.shadowBlur = 0;
         }
 
         function update() {
             if(!gameActive) return;
 
+            if(moveState.left && p.x > 0) p.x -= p.speed;
+            if(moveState.right && p.x < c.width - p.w) p.x += p.speed;
+
             let edge = false;
             enemies.forEach(e => {
                 if(e.alive) {
-                    e.x += speed * dir;
-                    if(e.x > 560 || e.x < 10) edge = true;
-                    if(e.y > 330) { gameOver(); }
+                    e.swing += 0.05;
+                    e.x += (speed * dir) + Math.sin(e.swing) * 2;
+                    if(e.x > c.width - 50 || e.x < 10) edge = true;
+                    if(e.y > p.y - 20) { gameActive = false; overlay.classList.remove('hidden'); document.querySelector('.title').innerText = "DERROTADO"; }
                 }
             });
 
             if(edge) {
                 dir *= -1;
-                enemies.forEach(e => e.y += 15);
-                speed += 0.05;
+                enemies.forEach(e => e.y += 20);
+                speed += 0.2;
             }
 
             bullets.forEach((b, i) => {
-                b.y -= 7;
+                b.y -= 12;
                 if(b.y < 0) bullets.splice(i, 1);
                 enemies.forEach(e => {
                     if(e.alive && b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
                         e.alive = false;
-                        bullets.splice(i, 1);
-                        score += 100;
+                        bullets.splice(i, i+1);
+                        score += 150;
                         scoreEl.innerText = score;
                     }
                 });
             });
 
             if(enemies.length > 0 && enemies.every(e => !e.alive)) {
-                speed += 0.5;
-                initEnemies();
+                speed += 1;
+                initGame();
             }
         }
 
         function draw() {
-            ctx.fillStyle = 'black';
-            ctx.fillRect(0, 0, c.width, c.height);
-            
+            ctx.clearRect(0, 0, c.width, c.height);
+            drawStars();
             if(gameActive) {
                 drawShip(p.x, p.y);
-                enemies.forEach(e => { if(e.alive) drawEnemy(e.x, e.y); });
-                ctx.fillStyle = 'white';
-                bullets.forEach(b => ctx.fillRect(b.x, b.y, 3, 10));
+                enemies.forEach(e => { if(e.alive) drawEnemy(e); });
+                ctx.fillStyle = '#fff';
+                bullets.forEach(b => ctx.fillRect(b.x, b.y, 4, 15));
             }
-        }
-
-        function gameOver() {
-            gameActive = false;
-            msg.innerText = "GAME OVER";
-            startBtn.innerText = "REINTENTAR";
-            overlay.classList.remove('hidden');
-        }
-
-        function startGame() {
-            score = 0;
-            scoreEl.innerText = score;
-            speed = 0.8;
-            dir = 1;
-            p.x = 275;
-            bullets = [];
-            initEnemies();
-            gameActive = true;
-            overlay.classList.add('hidden');
         }
 
         function loop() {
@@ -138,21 +185,35 @@
             requestAnimationFrame(loop);
         }
 
-        startBtn.onclick = startGame;
-
-        window.onkeydown = e => {
-            if(!gameActive) return;
-            if(e.key == 'ArrowLeft') p.x -= 20;
-            if(e.key == 'ArrowRight') p.x += 20;
-            if(e.key == ' ') bullets.push({x: p.x + 18, y: p.y});
+        startBtn.onclick = () => {
+            score = 0;
+            scoreEl.innerText = score;
+            speed = 2;
+            initGame();
+            gameActive = true;
+            overlay.classList.add('hidden');
         };
 
-        c.onclick = e => {
-            if(!gameActive) return;
-            const rect = c.getBoundingClientRect();
-            const scaleX = c.width / rect.width;
-            p.x = (e.clientX - rect.left) * scaleX - 20;
-            bullets.push({x: p.x + 18, y: p.y});
+        // Eventos Táctiles
+        const lBtn = document.getElementById('leftBtn');
+        const rBtn = document.getElementById('rightBtn');
+        const fBtn = document.getElementById('fireBtn');
+
+        lBtn.ontouchstart = (e) => { e.preventDefault(); moveState.left = true; };
+        lBtn.ontouchend = () => moveState.left = false;
+        rBtn.ontouchstart = (e) => { e.preventDefault(); moveState.right = true; };
+        rBtn.ontouchend = () => moveState.right = false;
+        fBtn.ontouchstart = (e) => { e.preventDefault(); if(gameActive) bullets.push({x: p.x + 23, y: p.y}); };
+
+        // Mouse/Keyboard fallbacks
+        window.onkeydown = e => {
+            if(e.key == 'ArrowLeft') moveState.left = true;
+            if(e.key == 'ArrowRight') moveState.right = true;
+            if(e.key == ' ') if(gameActive) bullets.push({x: p.x + 23, y: p.y});
+        };
+        window.onkeyup = e => {
+            if(e.key == 'ArrowLeft') moveState.left = false;
+            if(e.key == 'ArrowRight') moveState.right = false;
         };
 
         loop();
