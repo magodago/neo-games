@@ -3,38 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEO Space Invaders v2.0</title>
+    <title>NEO Space Invaders v2.1</title>
     <style>
         body { background: #050505; color: #00ff00; text-align: center; font-family: 'Courier New', monospace; margin: 0; overflow: hidden; touch-action: none; }
         #game-container { position: relative; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         canvas { border: 2px solid #333; background: #000; box-shadow: 0 0 20px rgba(0,255,0,0.2); max-width: 95%; max-height: 70vh; }
         .ui { margin: 10px; font-size: 1.2em; text-transform: uppercase; letter-spacing: 2px; }
-        .controls { font-size: 0.8em; color: #888; margin-bottom: 5px; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
+        button { background: #00ff00; color: #000; border: none; padding: 15px 30px; font-size: 1.5em; font-family: 'Courier New', monospace; cursor: pointer; font-weight: bold; margin-top: 20px; border-radius: 5px; }
+        button:hover { background: #00cc00; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <div id="game-container">
+        <div id="overlay">
+            <h1 id="msg">NEO INVADERS</h1>
+            <button id="startBtn">INICIAR JUEGO</button>
+        </div>
         <div class="ui">SCORE: <span id="score">0</span></div>
-        <div class="controls">TOCA PARA MOVER Y DISPARAR / FLECHAS + ESPACIO</div>
         <canvas id="g"></canvas>
     </div>
     <script>
         const c = document.getElementById('g');
         const ctx = c.getContext('2d');
         const scoreEl = document.getElementById('score');
+        const overlay = document.getElementById('overlay');
+        const startBtn = document.getElementById('startBtn');
+        const msg = document.getElementById('msg');
         
         c.width = 600;
         c.height = 400;
 
         let score = 0;
-        let gameActive = true;
-        const p = { x: 275, y: 350, w: 40, h: 20 };
-        const bullets = [];
-        const enemies = [];
+        let gameActive = false;
+        let p = { x: 275, y: 350, w: 40, h: 20 };
+        let bullets = [];
+        let enemies = [];
         let dir = 1;
-        let speed = 1.5;
+        let speed = 0.8; // Más lento por petición del jefe
 
         function initEnemies() {
+            enemies = [];
             for(let r=0; r<4; r++) {
                 for(let col=0; col<8; col++) {
                     enemies.push({ x: col*60 + 50, y: r*40 + 50, w: 30, h: 20, alive: true });
@@ -62,14 +72,14 @@
                 if(e.alive) {
                     e.x += speed * dir;
                     if(e.x > 560 || e.x < 10) edge = true;
-                    if(e.y > 330) { gameActive = false; alert('LA COMPETENCIA HA GANADO. ¡REINTENTA!'); location.reload(); }
+                    if(e.y > 330) { gameOver(); }
                 }
             });
 
             if(edge) {
                 dir *= -1;
                 enemies.forEach(e => e.y += 15);
-                speed += 0.1;
+                speed += 0.05;
             }
 
             bullets.forEach((b, i) => {
@@ -85,9 +95,9 @@
                 });
             });
 
-            if(enemies.every(e => !e.alive)) {
-                speed += 1;
-                enemies.forEach(e => { e.alive = true; e.y -= 100; });
+            if(enemies.length > 0 && enemies.every(e => !e.alive)) {
+                speed += 0.5;
+                initEnemies();
             }
         }
 
@@ -95,17 +105,31 @@
             ctx.fillStyle = 'black';
             ctx.fillRect(0, 0, c.width, c.height);
             
-            drawShip(p.x, p.y);
-            enemies.forEach(e => { if(e.alive) drawEnemy(e.x, e.y); });
-            
-            ctx.fillStyle = 'white';
-            bullets.forEach(b => ctx.fillRect(b.x, b.y, 3, 10));
-
-            if(!gameActive) {
+            if(gameActive) {
+                drawShip(p.x, p.y);
+                enemies.forEach(e => { if(e.alive) drawEnemy(e.x, e.y); });
                 ctx.fillStyle = 'white';
-                ctx.font = '40px Courier';
-                ctx.fillText('GAME OVER', 180, 200);
+                bullets.forEach(b => ctx.fillRect(b.x, b.y, 3, 10));
             }
+        }
+
+        function gameOver() {
+            gameActive = false;
+            msg.innerText = "GAME OVER";
+            startBtn.innerText = "REINTENTAR";
+            overlay.classList.remove('hidden');
+        }
+
+        function startGame() {
+            score = 0;
+            scoreEl.innerText = score;
+            speed = 0.8;
+            dir = 1;
+            p.x = 275;
+            bullets = [];
+            initEnemies();
+            gameActive = true;
+            overlay.classList.add('hidden');
         }
 
         function loop() {
@@ -114,20 +138,23 @@
             requestAnimationFrame(loop);
         }
 
+        startBtn.onclick = startGame;
+
         window.onkeydown = e => {
+            if(!gameActive) return;
             if(e.key == 'ArrowLeft') p.x -= 20;
             if(e.key == 'ArrowRight') p.x += 20;
             if(e.key == ' ') bullets.push({x: p.x + 18, y: p.y});
         };
 
         c.onclick = e => {
+            if(!gameActive) return;
             const rect = c.getBoundingClientRect();
             const scaleX = c.width / rect.width;
             p.x = (e.clientX - rect.left) * scaleX - 20;
             bullets.push({x: p.x + 18, y: p.y});
         };
 
-        initEnemies();
         loop();
     </script>
 </body>
